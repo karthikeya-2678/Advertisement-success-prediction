@@ -20,7 +20,12 @@ st.title("📈 Advertisement Success Prediction & AI Analysis")
 
 st.sidebar.title("⚙️ AI Configuration")
 
-api_key = "AIzaSyDn5RIzrznW1MTptZoK80H3haUsG9Oe4Aw"
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    st.sidebar.error("⚠️ GEMINI_API_KEY environment variable is not set. Video analysis will not work.")
+else:
+    st.sidebar.success("✅ Connected to Gemini API")
 
 st.sidebar.info(
     "Gemini AI analyzes your uploaded advertisement video "
@@ -160,7 +165,7 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
         st.subheader("🧠 Gemini AI Video Analysis")
 
         if not api_key:
-            st.warning("Enter Gemini API key in sidebar.")
+            st.warning("GEMINI_API_KEY was not found in environment variables.")
         else:
 
             with st.spinner("Analyzing advertisement..."):
