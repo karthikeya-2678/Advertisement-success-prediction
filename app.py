@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import pickle
+import tempfile
+import os
+from video_analyzer import VideoAnalyzer
 
 # ---------------------------------
 # Page Config
@@ -40,27 +43,49 @@ def load_metadata():
 df = load_metadata()
 
 # ---------------------------------
+# Layout
+# ---------------------------------
+
+col1, col2 = st.columns(2)
+
+# ---------------------------------
 # ML INPUT SECTION
 # ---------------------------------
 
-st.header("📊 Advertisement Parameters")
+with col1:
+    st.header("📊 Advertisement Parameters")
 
-input_data = {}
+    input_data = {}
 
-for col in df.columns:
+    for col in df.columns:
 
-    if df[col].dtype == "object":
+        if df[col].dtype == "object":
 
-        options = df[col].dropna().unique().tolist()
+            options = df[col].dropna().unique().tolist()
 
-        input_data[col] = st.selectbox(col, options)
+            input_data[col] = st.selectbox(col, options)
 
-    else:
+        else:
 
-        input_data[col] = st.number_input(
-            col,
-            value=float(df[col].mean())
-        )
+            input_data[col] = st.number_input(
+                col,
+                value=float(df[col].mean())
+            )
+
+# ---------------------------------
+# VIDEO SECTION
+# ---------------------------------
+
+with col2:
+    st.header("🎬 Upload Advertisement Video")
+
+    uploaded_video = st.file_uploader(
+        "Upload video for CV Analysis",
+        type=["mp4", "mov", "avi"]
+    )
+
+    if uploaded_video:
+        st.video(uploaded_video)
 
 # ---------------------------------
 # PREDICTION BUTTON
@@ -105,3 +130,35 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
         rating = 0
         prob = 0
         money_pred = "Unknown"
+
+# ---------------------------------
+# COMPUTER VISION VIDEO ANALYSIS
+# ---------------------------------
+
+    if uploaded_video:
+
+        st.subheader("👁️ Local Computer Vision Analysis")
+
+        with st.spinner("Analyzing video frames safely and locally..."):
+            try:
+                # Save video temporarily for OpenCV to read
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+                    tmp.write(uploaded_video.read())
+                    video_path = tmp.name
+
+                # Run CV Analyzer
+                analyzer = VideoAnalyzer()
+                report = analyzer.analyze_ad_video(
+                    video_path=video_path,
+                    ml_rating=rating,
+                    ml_success_prob=prob,
+                    ml_money_pred=money_pred
+                )
+                
+                st.markdown(report)
+
+                # Cleanup
+                os.remove(video_path)
+
+            except Exception as e:
+                st.error(f"Computer Vision analysis failed: {e}")
