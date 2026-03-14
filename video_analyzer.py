@@ -1,13 +1,11 @@
 import cv2
-import mediapipe as mp
 import numpy as np
 import math
 
 class VideoAnalyzer:
     def __init__(self):
-        # Initialize MediaPipe Face Detection
-        self.mp_face_detection = mp.solutions.face_detection
-        self.face_detection = self.mp_face_detection.FaceDetection(min_detection_confidence=0.5)
+        # Initialize OpenCV Face Detection (Haar Cascades)
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     def analyze_ad_video(self, video_path: str, ml_rating: float, ml_success_prob: float, ml_money_pred: str) -> str:
         """
@@ -69,12 +67,12 @@ class VideoAnalyzer:
             
             # 3. Face Detection (Analyze 1 frame per second to estimate actors)
             if frames_processed % 5 == 0:
-                # Convert the BGR image to RGB before processing with MediaPipe.
-                image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = self.face_detection.process(image_rgb)
+                # Convert the BGR image to grayscale for HAAR Cascade
+                gray_face = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = self.face_cascade.detectMultiScale(gray_face, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
                 
-                if results.detections:
-                    total_faces_detected += len(results.detections)
+                if len(faces) > 0:
+                    total_faces_detected += len(faces)
 
         cap.release()
 
@@ -92,7 +90,7 @@ class VideoAnalyzer:
         # Generate Marketing Report
         report = f"""
         ### 🤖 Computer Vision Insights
-        *Analysis generated entirely locally using OpenCV and MediaPipe.*
+        *Analysis generated entirely locally using OpenCV Haar Cascades.*
         
         **Visual Profile:**
         - **Lighting & Vibrancy:** {vibrancy_label} (Avg Brightness score: {avg_brightness:.1f}/255)
