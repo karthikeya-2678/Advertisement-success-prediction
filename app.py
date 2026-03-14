@@ -4,7 +4,7 @@ import pickle
 import os
 import tempfile
 import time
-import google.generativeai as genai
+from google import genai
 
 # ---------------------------------
 # Page Config
@@ -20,10 +20,7 @@ st.title("📈 Advertisement Success Prediction & AI Analysis")
 
 st.sidebar.title("⚙️ AI Configuration")
 
-api_key = st.sidebar.text_input(
-    "Enter Google Gemini API Key",
-    type="password"
-)
+api_key = "AIzaSyDn5RIzrznW1MTptZoK80H3haUsG9Oe4Aw"
 
 st.sidebar.info(
     "Gemini AI analyzes your uploaded advertisement video "
@@ -39,9 +36,9 @@ def load_models():
     with open("model/model.pkl", "rb") as f:
         models = pickle.load(f)
 
-    return models["rating_model"], models["success_model"]
+    return models["rating_model"], models["success_model"], models["money_model"]
 
-rating_model, success_model = load_models()
+rating_model, success_model, money_model = load_models()
 
 # ---------------------------------
 # Load Feature Metadata
@@ -52,7 +49,7 @@ def load_metadata():
     df = pd.read_csv("data/train.csv")
 
     return df.drop(
-        ["UserID", "netgain", "ratings"],
+        ["UserID", "netgain", "ratings", "money_back_guarantee"],
         axis=1,
         errors="ignore"
     )
@@ -127,8 +124,10 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
         pred = success_model.predict(features)[0]
 
         prob = success_model.predict_proba(features)[0][1] * 100
+        
+        money_pred = money_model.predict(features)[0]
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
 
         c1.metric("Predicted Rating", f"{rating:.3f}")
 
@@ -138,6 +137,11 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
         )
 
         c3.metric("Success Probability", f"{prob:.1f}%")
+        
+        c4.metric(
+            "Money Back Guarantee",
+            "Will Offer 💸" if money_pred == "Yes" else "No Guarantee 🚫" 
+        )
 
         st.progress(prob / 100)
 
@@ -145,6 +149,7 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
         st.error(f"Prediction error: {e}")
         rating = 0
         prob = 0
+        money_pred = "Unknown"
 
 # ---------------------------------
 # GEMINI VIDEO ANALYSIS
@@ -162,7 +167,8 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
 
                 try:
 
-                    genai.configure(api_key=api_key)
+                    # Initialize the new GenAI client
+                    client = genai.Client(api_key=api_key)
 
                     # Save video temporarily
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
@@ -171,13 +177,12 @@ if st.button("🚀 Analyze Advertisement", use_container_width=True):
 
                         video_path = tmp.name
 
-                    video_file = genai.upload_file(path=video_path)
+                    # Upload using the new client API
+                    video_file = client.files.upload(file=video_path)
 
                     while video_file.state.name == "PROCESSING":
                         time.sleep(5)
-                        video_file = genai.get_file(video_file.name)
-
-                    model = genai.GenerativeModel("gemini-2.5-flash")
+                        video_file = client.files.get(name=video_file.name)
 
                     prompt = f"""
 You are an expert advertising strategist.
@@ -188,6 +193,7 @@ Context: {ad_context}
 
 ML predicted rating: {rating}
 ML success probability: {prob:.1f}%
+ML predicted Money Back Guarantee: {money_pred}
 
 Give short marketing insights:
 
@@ -198,11 +204,16 @@ Give short marketing insights:
 • Key improvements
 """
 
-                    response = model.generate_content([video_file, prompt])
+                    # Generate content using the new client API
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=[video_file, prompt]
+                    )
 
                     st.markdown(response.text)
 
-                    genai.delete_file(video_file.name)
+                    # Cleanup
+                    client.files.delete(name=video_file.name)
 
                     os.remove(video_path)
 
